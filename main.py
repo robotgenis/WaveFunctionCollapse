@@ -7,14 +7,14 @@ import run, visual
 
 # Define the functions to run
 def func1(*args):
-    print("Running function 1")
+    print("Generating Pattern")
     run.run(*args)
-    print("Finished running function 1")
+    print("Finished Generating Pattern")
 
 def func2(*args):
-    print("Running function 2")
+    print("Running Visualizer")
     visual.run(*args)
-    print("Finished running function 2")
+    print("Closed Visualizer")
 
 if __name__ == '__main__':
 	multiprocessing.freeze_support()

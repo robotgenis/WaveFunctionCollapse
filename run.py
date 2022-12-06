@@ -25,37 +25,35 @@ MIRRORING_VERT = 1
 
 
 
-# input_str = """
-# 220000000
-# 112222000
-# 001111222
-# 000000111
-# 200000000
-# 122200000
-# 011120000
-# 000012222
-# 000001111
-# 000000000
-# """
-# N = 3
-# ROTATION = 0
-# MIRRORING_HORZ = 0
-# MIRRORING_VERT = 0
-
-
-
 input_str = """
-1111
-1000
-1020
-1000
+220000000
+112222000
+001111222
+000000111
+200000000
+122200000
+011120000
+000012222
+000001111
+000000000
 """
-N = 2
-ROTATION = 1
-MIRRORING_HORZ = 1
-MIRRORING_VERT = 1
+N = 3
+ROTATION = 0
+MIRRORING_HORZ = 0
+MIRRORING_VERT = 0
 
 
+
+# input_str = """
+# 1111
+# 1000
+# 1020
+# 1000
+# """
+# N = 2
+# ROTATION = 1
+# MIRRORING_HORZ = 1
+# MIRRORING_VERT = 1
 
 # COLORS = {
 # 	"0": (0, 0, 255, 255),
@@ -111,9 +109,12 @@ class TileLocation:
 		self.tiles = [1 for _ in range(tile_count)]
 		self.state = None
 	
-	def collapse(self):
+	def collapse(self, tiles:dict, tile_type_from_id:dict, global_tile_counts:list[int]):
 		poss = [i for i in range(len(self.tiles)) if self.tiles[i]]
-		self.state = choice(poss) # TODO add wieghts
+		weights = [tiles[tile_type_from_id[i]] / (global_tile_counts[i] + 1) for i in range(len(self.tiles)) if self.tiles[i]]
+
+		self.state = choices(poss, weights)[0]
+
 		self.tiles = [0 if i != self.state else 1 for i in range(len(self.tiles))]
 
 	# Returns true if values changed
@@ -325,7 +326,13 @@ def main(referenceGlobal, IS:str, N:int, R:bool, MH:bool, MV:bool, OX:int, OY:in
 
 		x, y = choice(fillPoints)
 
-		wave[y][x].collapse()
+		#Calculate total occurance for weights
+		placedTileCounts = [0 for _ in range(tile_count)]
+		for out_x in range(OUTPUT_X):
+			for out_y in range(OUTPUT_Y):
+				if wave[y][x].state != None:
+					placedTileCounts[wave[out_y][out_x].state] += 1
+		wave[y][x].collapse(tiles, tile_type_from_id, placedTileCounts)
 
 		# Propergate Loop
 		propQueue = PriorityQueue()
@@ -366,11 +373,10 @@ def main(referenceGlobal, IS:str, N:int, R:bool, MH:bool, MV:bool, OX:int, OY:in
 		return solve(wave)
 	
 	
-
 	ans = solve(wave)
 	saveWave(wave)
 	print(wave)
 
 if __name__ == "__main__":
-	run(None, OUTPUT_X, OUTPUT_Y)
+	run([], OUTPUT_X, OUTPUT_Y)
 	
