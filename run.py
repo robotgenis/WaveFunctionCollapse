@@ -3,9 +3,10 @@
 from random import choice, shuffle, choices
 from copy import deepcopy
 from collections import defaultdict
+from queue import PriorityQueue
 import sys
 
-sys.setrecursionlimit(1000)
+sys.setrecursionlimit(10000)
 
 # Default Colors
 
@@ -23,7 +24,9 @@ MIRRORING_HORZ = 1
 MIRRORING_VERT = 1
 
 
+
 # input_str = """
+# 220000000
 # 112222000
 # 001111222
 # 000000111
@@ -32,27 +35,71 @@ MIRRORING_VERT = 1
 # 011120000
 # 000012222
 # 000001111
+# 000000000
 # """
 # N = 3
 # ROTATION = 0
 # MIRRORING_HORZ = 0
 # MIRRORING_VERT = 0
 
-input_str = """
-1111
-1000
-1020
-1000
-"""
-N = 2
-ROTATION = 1
-MIRRORING_HORZ = 1
-MIRRORING_VERT = 1
 
-# OUTPUT_X = 40
-# OUTPUT_Y = 40
-OUTPUT_X = 5
-OUTPUT_Y = 5
+
+# input_str = """
+# 1111
+# 1000
+# 1020
+# 1000
+# """
+# N = 2
+# ROTATION = 1
+# MIRRORING_HORZ = 1
+# MIRRORING_VERT = 1
+
+COLORS = {
+	"0": (0, 0, 255, 255),
+	"1": (111, 255, 55, 255),
+	"2": (255, 255, 10, 255),
+	"3": (111, 78, 55, 255),
+	"4": (50, 30, 30, 255),
+	"5": (255, 0, 0, 255),
+}
+input_str = """
+000000000000000000
+000000000000000000
+000000000000000000
+000000000000000000
+000000000000000000
+000000000000000000
+000000000000000000
+000000111000000000
+000001111100000000
+000011111110000000
+000011111110000000
+000001111100000000
+000000444000000000
+000000444000000000
+000000444000000000
+333333333333333333
+333333333333333333
+333333333333333333
+333333333333333333
+333333333333333333
+333333333333333333
+"""
+N = 3
+ROTATION = 0
+MIRRORING_HORZ = 0
+MIRRORING_VERT = 0
+
+
+
+
+# OUTPUT_X = 50
+# OUTPUT_Y = 50
+OUTPUT_X = 30
+OUTPUT_Y = 30
+# OUTPUT_X = 5
+# OUTPUT_Y = 5
 
 
 class TileLocation:
@@ -63,9 +110,12 @@ class TileLocation:
 		self.tiles = [1 for _ in range(tile_count)]
 		self.state = None
 	
-	def collapse(self):
+	def collapse(self, tiles:dict, tile_type_from_id:dict, global_tile_counts:list[int]):
 		poss = [i for i in range(len(self.tiles)) if self.tiles[i]]
-		self.state = choice(poss) # TODO add wieghts
+		weights = [tiles[tile_type_from_id[i]] / (global_tile_counts[i] + 1) for i in range(len(self.tiles)) if self.tiles[i]]
+
+		self.state = choices(poss, weights)[0]
+
 		self.tiles = [0 if i != self.state else 1 for i in range(len(self.tiles))]
 
 	# Returns true if values changed
@@ -111,9 +161,6 @@ class TileLocation:
 
 		return change1, change2
 
-
-
-
 	def __getitem__(self, k):
 		return self.tiles[k]
 	def __setitem__(self, k, v):
@@ -122,6 +169,9 @@ class TileLocation:
 		return self.tiles[k]
 	def __len__(self):
 		return sum(self.tiles)
+
+	def __iter__(self):
+		return iter(i for i in range(len(self.tiles)) if self.tiles[i] == 1)
 
 	def pointsContained(self):
 		return [(dx, dy) for dx in range(self.x, self.x + self.N) for dy in range(self.y, self.y + self.N)]
@@ -243,9 +293,11 @@ def main(referenceGlobal, IS:str, N:int, R:bool, MH:bool, MV:bool, OX:int, OY:in
 			for point in wave[y][x].pointsContained():
 				if point[0] < OUTPUT_X and point[1] < OUTPUT_Y:
 					connectTiles[point[1]][point[0]].add((x, y))
-	
+
+	def saveWave(wave):
+		referenceGlobal[:] = [wave, N, COLORS, tile_type_from_id, block_type_from_id]
+
 	def solve(wave:list[list[dict[tuple, TileLocation]]]):
-		print("1")
 		# Generate count of possibilities
 		entropy = [[0 for _ in range(OUTPUT_X)] for _ in range(OUTPUT_Y)]
 		
@@ -272,25 +324,32 @@ def main(referenceGlobal, IS:str, N:int, R:bool, MH:bool, MV:bool, OX:int, OY:in
 		for out_x in range(OUTPUT_X):
 			for out_y in range(OUTPUT_Y):
 				if entropy[out_y][out_x] == minimumEntropy:
-					fillPoints.append((out_y,out_x))
-		
-		print("2")
+					fillPoints.append((out_x,out_y))
 
 		x, y = choice(fillPoints)
 
-		wave[y][x].collapse()
+		#Calculate total occurance for weights
+		placedTileCounts = [0 for _ in range(tile_count)]
+		for out_x in range(OUTPUT_X):
+			for out_y in range(OUTPUT_Y):
+				if wave[y][x].state != None:
+					placedTileCounts[wave[out_y][out_x].state] += 1
+		wave[y][x].collapse(tiles, tile_type_from_id, placedTileCounts)
 
 		# Propergate Loop
-		propQueue = [(x, y)]
+		propQueue = PriorityQueue()
+		propQueue.put((1, x, y))
+		# propQueue = [(x, y)]
 
-		while propQueue:
-			print("3")
-			curr_x, curr_y = propQueue.pop()
+		# while propQueue:
+		while not propQueue.empty():
+		
+			_, curr_x, curr_y = propQueue.get_nowait()
+			# curr_x, curr_y = propQueue.pop()
 
 			tile1 = wave[curr_y][curr_x]
 
 			for ox in range(-N + 1, N):
-				print("4")
 				t2x = curr_x + ox 
 
 				if t2x < 0 or t2x >= OUTPUT_X: continue
@@ -301,27 +360,25 @@ def main(referenceGlobal, IS:str, N:int, R:bool, MH:bool, MV:bool, OX:int, OY:in
 					if t2y < 0 or t2y >= OUTPUT_Y: continue
 
 					tile2 = wave[t2y][t2x]
-					change1, change2 = tile1.propegate(tile2, tile_type_from_id)
+					change1, change2 = tile1.propagate(tile2, tile_type_from_id)
 
 					if change1:
-						propQueue.append((curr_x, curr_y))
+						propQueue.put((len(wave[curr_y][curr_x]), curr_x, curr_y))
+						# propQueue.append((curr_x, curr_y))
 					if change2:
-						propQueue.append((t2x, t2y))
-		print("5")
-		# for row in wave:
-		# 	for i in row:
-		# 		print(i.tiles)
-		# print(wave)
-		print("6")
+						propQueue.put((len(wave[t2y][t2x]), t2x, t2y))
+						# propQueue.append((t2x, t2y))
+
+
+			saveWave(wave)
 
 		return solve(wave)
-
+	
+	
 	ans = solve(wave)
-	print("Done", ans)
+	saveWave(wave)
 	print(wave)
 
-
 if __name__ == "__main__":
-	run(None, OUTPUT_X, OUTPUT_Y)
-	print("Hello?")
+	run([], OUTPUT_X, OUTPUT_Y)
 	
