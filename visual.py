@@ -1,6 +1,9 @@
 import random
 import pyglet
 from copy import deepcopy
+
+import test_visual
+
 def run(r, OUTPUT_X, OUTPUT_Y):
 
 	# Define the size and colors of the grid squares in pixels
@@ -61,31 +64,33 @@ def run(r, OUTPUT_X, OUTPUT_Y):
 		
 		wave, N, COLORS, tile_type_from_id, block_type_from_id = deepcopy(r)
 
-		colorTotals = [[[0, 0, 0, 0] for _ in range(OUTPUT_X)] for _ in range(OUTPUT_Y)]
-		colorCount = [[0 for _ in range(OUTPUT_X)] for _ in range(OUTPUT_Y)]
+
+		colorTotals = test_visual.compute(OUTPUT_X, OUTPUT_Y, wave, N, COLORS, tile_type_from_id, block_type_from_id)
+		# colorTotals = [[[0, 0, 0, 0] for _ in range(OUTPUT_X)] for _ in range(OUTPUT_Y)]
+		# colorCount = [[0 for _ in range(OUTPUT_X)] for _ in range(OUTPUT_Y)]
 		
-		for x in range(OUTPUT_X):
-			for y in range(OUTPUT_Y):
-				for tileId in wave[y][x]:
-					contents = tile_type_from_id[tileId]
+		# for x in range(OUTPUT_X):
+		# 	for y in range(OUTPUT_Y):
+		# 		for tileId in wave[y][x]:
+		# 			contents = tile_type_from_id[tileId]
 
-					for dx in range(N):
-						if x + dx >= OUTPUT_X: continue
-						for dy in range(N):
-							if y + dy >= OUTPUT_Y: continue
+		# 			for dx in range(N):
+		# 				if x + dx >= OUTPUT_X: continue
+		# 				for dy in range(N):
+		# 					if y + dy >= OUTPUT_Y: continue
 							
-							# we are sorry.
-							itemColor = COLORS[block_type_from_id[contents[dy][dx]]]
-							colorTotals[y+dy][x+dx] = [colorTotals[y+dy][x+dx][i] + itemColor[i] for i in range(4)]
+		# 					# we are sorry.
+		# 					itemColor = COLORS[block_type_from_id[contents[dy][dx]]]
+		# 					colorTotals[y+dy][x+dx] = [colorTotals[y+dy][x+dx][i] + itemColor[i] for i in range(4)]
 							
-							colorCount[y+dy][x+dx] += 1
+		# 					colorCount[y+dy][x+dx] += 1
 
-		for x in range(OUTPUT_X):
-			for y in range(OUTPUT_Y):
-				if colorCount[y][x]:
-					colorTotals[y][x] = tuple(int(i / colorCount[y][x]) for i in colorTotals[y][x])
-				else:
-					colorTotals[y][x] = (0,0,0,0)
+		# for x in range(OUTPUT_X):
+		# 	for y in range(OUTPUT_Y):
+		# 		if colorCount[y][x]:
+		# 			colorTotals[y][x] = tuple(int(i / colorCount[y][x]) for i in colorTotals[y][x])
+		# 		else:
+		# 			colorTotals[y][x] = (0,0,0,0)
 		
 		batch = pyglet.graphics.Batch()
 

@@ -2,9 +2,6 @@ import multiprocessing
 import time
 import run, visual
 
-
-
-
 # Define the functions to run
 def func1(*args):
     print("Generating Pattern")
