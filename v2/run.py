@@ -24,7 +24,6 @@ MIRRORING_HORZ = 1
 MIRRORING_VERT = 1
 
 
-
 # input_str = """
 # 220000000
 # 112222000
