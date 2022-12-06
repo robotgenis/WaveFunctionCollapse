@@ -169,6 +169,7 @@ class TileLocation:
 		return self.tiles[k]
 	def __len__(self):
 		return sum(self.tiles)
+
 	def __iter__(self):
 		return iter(i for i in range(len(self.tiles)) if self.tiles[i] == 1)
 
