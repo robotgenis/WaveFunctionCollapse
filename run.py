@@ -61,7 +61,6 @@ class TileLocation:
 		self.x = x
 		self.y = y
 		self.tiles = [1 for _ in range(tile_count)]
-		self.tile_count = lambda: sum(self.tiles)
 		self.state = None
 	
 	def collapse(self):
@@ -70,7 +69,7 @@ class TileLocation:
 		self.tiles = [0 if i != self.state else 1 for i in range(len(self.tiles))]
 
 	# Returns true if values changed
-	def propegate(self, other, tile_type_from_id):
+	def propagate(self, other, tile_type_from_id):
 		dx = other.x - self.x
 		dy = other.y - self.y
 
@@ -122,13 +121,13 @@ class TileLocation:
 	def __contains__(self, k):
 		return self.tiles[k]
 	def __len__(self):
-		return self.tile_count()
+		return sum(self.tiles)
 
 	def pointsContained(self):
 		return [(dx, dy) for dx in range(self.x, self.x + self.N) for dy in range(self.y, self.y + self.N)]
 	
 	def __repr__(self):
-		return f"T({self.x}, {self.y})-{self.tile_count()}" #-{self.state if self.state != None else 'X'}"
+		return f"T({self.x}, {self.y})-{sum(self.tiles)}" #-{self.state if self.state != None else 'X'}"
 
 def createTiles(input_str, ROTATION, MIRRORING_HORZ, MIRRORING_VERT):
 	def inputStrToList(data:list[str]) -> list[list[int]]:
