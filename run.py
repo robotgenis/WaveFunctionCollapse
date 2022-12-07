@@ -285,14 +285,6 @@ def main(referenceGlobal, IS:str, N:int, R:bool, MH:bool, MV:bool, OX:int, OY:in
 
 	wave = [[TileLocation(N, x, y, tile_count) for x in range(OUTPUT_X)] for y in range(OUTPUT_Y)]
 
-	connectTiles = [[set() for _ in range(OUTPUT_X)] for _ in range(OUTPUT_Y)]
-
-	for x in range(len(wave)):
-		for y in range(len(wave[x])):
-			for point in wave[y][x].pointsContained():
-				if point[0] < OUTPUT_X and point[1] < OUTPUT_Y:
-					connectTiles[point[1]][point[0]].add((x, y))
-
 	def saveWave(wave):
 		referenceGlobal[:] = [wave, N, COLORS, tile_type_from_id, block_type_from_id]
 

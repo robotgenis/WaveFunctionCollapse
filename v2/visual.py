@@ -4,7 +4,7 @@ from copy import deepcopy
 def run(r, OUTPUT_X, OUTPUT_Y):
 
 	# Define the size and colors of the grid squares in pixels
-	size = 15
+	size = 5
 	
 	# Set the window size and background color
 	width, height = size*OUTPUT_X, size*OUTPUT_Y

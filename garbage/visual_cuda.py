@@ -6,40 +6,7 @@ import time
 
 from run import TileLocation
 
-def compute(OUTPUT_X, OUTPUT_Y, wave_input:list[list[TileLocation]], N_input, COLORS_input, tile_type_from_id_input, block_type_from_id_input):
-# Set up the data
-	tile_count = np.uint32(len(tile_type_from_id_input))
-
-	# wave = np.ones((OUTPUT_X,OUTPUT_Y,tile_count), dtype=bool)
-
-	wave = np.array([[i.tiles for i in row] for row in wave_input], dtype=bool)
-
-	N = np.uint8(N_input)
-
-	tile_array = np.array([v for k, v in sorted(tile_type_from_id_input.items())], dtype=np.uint8)
-
-	colors_array = np.array([COLORS_input[block_type_from_id_input[i]] for i in sorted(block_type_from_id_input)], dtype=np.uint8)
-
-	output = np.zeros((OUTPUT_X, OUTPUT_Y, 4), dtype=np.uint32)
-
-	# Transfer the data to the GPU
-
-	wave_gpu = drv.mem_alloc(wave.nbytes)
-	drv.memcpy_htod(wave_gpu, wave)
-
-	N_gpu = drv.mem_alloc(N.nbytes)
-	drv.memcpy_htod(N_gpu, N)
-
-	tile_count_gpu = drv.mem_alloc(tile_count.nbytes)
-	drv.memcpy_htod(tile_count_gpu, tile_count)
-
-	tile_array_gpu = drv.mem_alloc(tile_array.nbytes)
-	drv.memcpy_htod(tile_array_gpu, tile_array)
-
-	colors_array_gpu = drv.mem_alloc(colors_array.nbytes)
-	drv.memcpy_htod(colors_array_gpu, colors_array)
-
-	output_gpu = drv.mem_alloc(output.nbytes)
+def compute(OUTPUT_X, OUTPUT_Y, wave_gpu, N_gpu, tile_count_gpu, tile_array_gpu, colors_array_gpu, output_gpu):
 
 	# Create a CUDA kernel
 	mod = SourceModule("""
@@ -100,10 +67,10 @@ def compute(OUTPUT_X, OUTPUT_Y, wave_input:list[list[TileLocation]], N_input, CO
 
 	compute_colors = mod.get_function("compute_colors")
 
-	st = time.time()
 	compute_colors(wave_gpu, N_gpu, tile_count_gpu, tile_array_gpu, colors_array_gpu, output_gpu, block=(OUTPUT_X, OUTPUT_Y, 1), grid=(1, 1, 1))
 
 	# Transfer the result back to the host
+	output = np.zeros((OUTPUT_X, OUTPUT_Y, 4), dtype=np.uint32)
 	drv.memcpy_dtoh(output, output_gpu)
 
 	return [[tuple(i) for i in row] for row in output]
