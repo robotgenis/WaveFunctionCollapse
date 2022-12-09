@@ -43,52 +43,52 @@ MIRRORING_VERT = 1
 
 
 
-input_str = """
-1111
-1000
-1020
-1000
-"""
-N = 2
-ROTATION = 1
-MIRRORING_HORZ = 1
-MIRRORING_VERT = 1
-
-# COLORS = {
-# 	"0": (0, 0, 255, 255),
-# 	"1": (111, 255, 55, 255),
-# 	"2": (255, 255, 10, 255),
-# 	"3": (111, 78, 55, 255),
-# 	"4": (50, 30, 30, 255),
-# 	"5": (255, 0, 0, 255),
-# }
 # input_str = """
-# 000000000000000000
-# 000000000000000000
-# 000000000000000000
-# 000000000000000000
-# 000000000000000000
-# 000000000000000000
-# 000000000000000000
-# 000000111000000000
-# 000001111100000000
-# 000011111110000000
-# 000011111110000000
-# 000001111100000000
-# 000000444000000000
-# 000000444000000000
-# 000000444000000000
-# 333333333333333333
-# 333333333333333333
-# 333333333333333333
-# 333333333333333333
-# 333333333333333333
-# 333333333333333333
+# 1111
+# 1000
+# 1020
+# 1000
 # """
-# N = 3
-# ROTATION = 0
-# MIRRORING_HORZ = 0
-# MIRRORING_VERT = 0
+# N = 2
+# ROTATION = 1
+# MIRRORING_HORZ = 1
+# MIRRORING_VERT = 1
+
+COLORS = {
+	"0": (0, 0, 255, 255),
+	"1": (111, 255, 55, 255),
+	"2": (255, 255, 10, 255),
+	"3": (111, 78, 55, 255),
+	"4": (50, 30, 30, 255),
+	"5": (255, 0, 0, 255),
+}
+input_str = """
+000000000000000000
+000000000000000000
+000000000000000000
+000000000000000000
+000000000000000000
+000000000000000000
+000000000000000000
+000000111000000000
+000001111100000000
+000011111110000000
+000011111110000000
+000001111100000000
+000000444000000000
+000000444000000000
+000000444000000000
+333333333333333333
+333333333333333333
+333333333333333333
+333333333333333333
+333333333333333333
+333333333333333333
+"""
+N = 3
+ROTATION = 0
+MIRRORING_HORZ = 0
+MIRRORING_VERT = 0
 
 
 
@@ -284,6 +284,14 @@ def main(referenceGlobal, IS:str, N:int, R:bool, MH:bool, MV:bool, OX:int, OY:in
 	tiles, tile_count, tile_type_from_id, tile_id_from_type, block_count, block_type_from_id, block_id_from_type, block_tile_map = createTiles(input_str, ROTATION, MIRRORING_HORZ, MIRRORING_VERT)
 
 	wave = [[TileLocation(N, x, y, tile_count) for x in range(OUTPUT_X)] for y in range(OUTPUT_Y)]
+
+	connectTiles = [[set() for _ in range(OUTPUT_X)] for _ in range(OUTPUT_Y)]
+
+	for x in range(len(wave)):
+		for y in range(len(wave[x])):
+			for point in wave[y][x].pointsContained():
+				if point[0] < OUTPUT_X and point[1] < OUTPUT_Y:
+					connectTiles[point[1]][point[0]].add((x, y))
 
 	def saveWave(wave):
 		referenceGlobal[:] = [wave, N, COLORS, tile_type_from_id, block_type_from_id]
