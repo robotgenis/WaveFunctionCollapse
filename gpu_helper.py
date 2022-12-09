@@ -8,9 +8,9 @@ def createsBlockGridSizes(*a):
 	block = [v for v in a]
 	grid = [1 for _ in a]
 	for i in range(len(block)):
-		if block[i] > 32:
-			block[i] = 32
-			grid[i] = ceil(a[i] / 32)
+		if block[i] > WARP_SIZE:
+			block[i] = WARP_SIZE
+			grid[i] = ceil(a[i] / WARP_SIZE)
 	return tuple(block), tuple(grid)
 
 

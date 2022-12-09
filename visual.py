@@ -71,7 +71,7 @@ compute_colors = compute_colors_module.get_function("compute_colors")
 def run(r, OUTPUT_X, OUTPUT_Y):
 
 	# Define the size and colors of the grid squares in pixels
-	size = 1
+	size = 50
 	
 	# Set the window size and background color
 	width, height = size*OUTPUT_X, size*OUTPUT_Y
@@ -111,7 +111,18 @@ def run(r, OUTPUT_X, OUTPUT_Y):
 	drv.memcpy_htod(tile_array_gpu, tile_array)
 	drv.memcpy_htod(colors_array_gpu, colors_array)
 
-	data = output.flatten()
+	# data = output.flatten()
+
+	data = []
+
+	for row in output:
+		temp = []
+		for i in row:
+			temp.extend(tuple(i)*size)
+
+		data.extend(tuple(temp)*size)
+
+	data = np.array(data).flatten()
 
 	tex_data = (pyglet.gl.GLubyte * data.size)( *data.astype('uint8') )
 
@@ -127,15 +138,13 @@ def run(r, OUTPUT_X, OUTPUT_Y):
 		pitch = img_pitch
     )
 
-	@window.event
-	def on_draw():
-		img.blit(0, 0)
-
 	def update(dt):
 		if r == None: return
 		if len(r) == 0: return
 				
 		drv.memcpy_htod(wave_gpu, r[0])
+
+		print(r[0])
 		
 		block, grid = createsBlockGridSizes(OUTPUT_X, OUTPUT_Y, 1)
 		
@@ -144,11 +153,27 @@ def run(r, OUTPUT_X, OUTPUT_Y):
 		# Transfer the result back to the host
 		drv.memcpy_dtoh(output, output_gpu)
 
-		data = output.flatten()
+		# data = output.flatten()
+
+		data = []
+
+		# print(*output)
+
+		for row in output:
+			temp = []
+			for i in row:
+				temp.extend(tuple(i)*size)
+
+			data.extend(tuple(temp)*size)
+
+		data = np.array(data).flatten()
 
 		tex_data = (pyglet.gl.GLubyte * data.size)( *data.astype('uint8') )
 		
 		img.set_data("RGBA", img_pitch, tex_data)
+
+		window.clear()
+		img.blit(0, 0)
 
 	# Run the window
 	pyglet.clock.schedule_interval(update, 0.5)
