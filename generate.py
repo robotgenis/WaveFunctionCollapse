@@ -17,6 +17,10 @@ sys.setrecursionlimit(10000)
 
 
 # Create a CUDA kernel
+# TODO compute_tile_connections_module
+
+
+
 compute_entropy_module = SourceModule("""
 __global__ void compute_entropy(bool *wave, unsigned int *OUTPUT_X, unsigned int *OUTPUT_Y, unsigned int *tile_count, unsigned int *entropy) {
 	const int x = threadIdx.x + blockIdx.x * blockDim.x;

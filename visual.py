@@ -138,14 +138,16 @@ def run(r, OUTPUT_X, OUTPUT_Y):
 		pitch = img_pitch
     )
 
+	@window.event
+	def on_draw():
+		img.blit(0, 0)
+
 	def update(dt):
 		if r == None: return
 		if len(r) == 0: return
 				
 		drv.memcpy_htod(wave_gpu, r[0])
 
-		print(r[0])
-		
 		block, grid = createsBlockGridSizes(OUTPUT_X, OUTPUT_Y, 1)
 		
 		compute_colors(wave_gpu, out_x_gpu, out_y_gpu, N_gpu, tile_count_gpu, tile_array_gpu, colors_array_gpu, output_gpu, block=block, grid=grid)
@@ -155,11 +157,10 @@ def run(r, OUTPUT_X, OUTPUT_Y):
 
 		# data = output.flatten()
 
+		# Expand data for larger display
 		data = []
 
-		# print(*output)
-
-		for row in output:
+		for row in output[::-1]:
 			temp = []
 			for i in row:
 				temp.extend(tuple(i)*size)
@@ -171,9 +172,6 @@ def run(r, OUTPUT_X, OUTPUT_Y):
 		tex_data = (pyglet.gl.GLubyte * data.size)( *data.astype('uint8') )
 		
 		img.set_data("RGBA", img_pitch, tex_data)
-
-		window.clear()
-		img.blit(0, 0)
 
 	# Run the window
 	pyglet.clock.schedule_interval(update, 0.5)
