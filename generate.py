@@ -1,5 +1,6 @@
 import sys
 from collections import defaultdict
+import time
 
 import numpy as np
 import pycuda.autoinit
@@ -10,9 +11,8 @@ from gpu_helper import createsBlockGridSizes
 
 sys.setrecursionlimit(10000)
 
-
 # Create CUDA kernels
-compute_tile_connections_module = SourceModule("""                              
+compute_tile_collision_module = SourceModule("""                              
 int min(int a, int b){
 	return (a < b) ? a : b;
 }
@@ -24,8 +24,8 @@ int max(int a, int b){
 int abs(int a){
 	return (a < 0) ? a * -1 : a;
 }
-                                               
-__global__ void compute_tile_connections(bool *tile_collision, unsigned char *tile_array, unsigned int *tile_count, unsigned int *N) {
+											   
+__global__ void compute_tile_collision(bool *tile_collision, unsigned char *tile_array, unsigned int *tile_count, unsigned char *N) {
 	const int t1 = threadIdx.x + blockIdx.x * blockDim.x;
 	const int t2 = threadIdx.y + blockIdx.y * blockDim.y;
  
@@ -60,7 +60,7 @@ __global__ void compute_tile_connections(bool *tile_collision, unsigned char *ti
 	}
 }
 """)
-compute_tile_connections = compute_tile_connections_module.get_function("compute_tile_connections")
+compute_tile_collision = compute_tile_collision_module.get_function("compute_tile_collision")
 
 
 compute_entropy_module = SourceModule("""
@@ -135,11 +135,14 @@ __global__ void compute_entropy_position(bool *wave, unsigned int *entropy, unsi
 
 	for(x = 0; x < *OUTPUT_X; ++x){
 		col_counter = count_in_cols[x];
+		col_smallest_value = lowest_value_in_cols[x];
 
-		if(index >= col_counter){
-			index -= col_counter;
-		}else{
-			break;
+		if(smallest_value == col_smallest_value){
+			if(index >= col_counter){
+				index -= col_counter;
+			}else if(col_counter > 0) {
+				break;
+			}
 		}
 	}
 
@@ -174,6 +177,78 @@ __global__ void compute_entropy_position(bool *wave, unsigned int *entropy, unsi
 }
 """)
 compute_entropy_position = compute_entropy_position_module.get_function("compute_entropy_position")
+
+clear_changes_module = SourceModule("""
+__global__ void clear_changes(unsigned int *OUTPUT_X, unsigned int *OUTPUT_Y, unsigned int *TARGET_X, unsigned int *TARGET_Y, bool *change) {
+	const int x = threadIdx.x + blockIdx.x * blockDim.x;
+	const int y = threadIdx.y + blockIdx.y * blockDim.y;
+	
+	int chunk = x + y * *OUTPUT_X;
+	
+	if(x >= *OUTPUT_X || y >= *OUTPUT_Y) return;
+ 
+	change[chunk] = (*TARGET_X == x && *TARGET_Y == y);
+
+	// joe mama is so fat
+	// the gpu had to check its bounds *again*
+	if(x >= *OUTPUT_X || y >= *OUTPUT_Y) return;
+}
+""")
+clear_changes = clear_changes_module.get_function("clear_changes")
+
+compute_propagation_module = SourceModule("""
+__global__ void compute_propagation(unsigned int *OUTPUT_X, unsigned int *OUTPUT_Y, unsigned int *tile_count, unsigned char *N, bool *change_state_read, bool *change_state_write, bool *wave_read, bool *wave_write, bool *tile_collision, bool *change_entire) {
+	const int x = threadIdx.x + blockIdx.x * blockDim.x;
+	const int y = threadIdx.y + blockIdx.y * blockDim.y;
+	const int t1 = threadIdx.z + blockIdx.z * blockDim.z;
+	const int chunk = t1 + x * *tile_count + y * *tile_count * *OUTPUT_X;
+	
+	if(x >= *OUTPUT_X || y >= *OUTPUT_Y || t1 >= *tile_count) return;
+  
+	wave_write[chunk] = wave_read[chunk];
+	change_state_write[x + y * *OUTPUT_X] = 0;
+ 
+	if(!wave_read[chunk]) return;
+  
+	const int size = 2 * *N - 1;
+  
+	int dx, dy, t2, x2, y2, ox, oy;
+	bool compatible = 0;
+	for(dx = -*N + 1; dx < *N && !compatible; ++dx){
+		x2 = x + dx;
+		ox = dx + *N - 1;
+  
+		if(x2 < 0 || x2 >= *OUTPUT_X) continue;
+  
+		for (dy = -*N + 1; dy < *N && !compatible; ++dy){
+			if(dx == 0 && dy == 0) continue;
+			y2 = y + dy;
+			oy = dy + *N - 1;
+   
+			if(y2 < 0 || y2 >= *OUTPUT_Y) continue;
+   
+			if(change_state_read[x2 + y2 * *OUTPUT_X]){
+				// Check for compatibility
+
+				for(t2 = 0; t2 < *tile_count && !compatible; ++t2){
+					if(wave_read[t2 + x2 * *tile_count + y2 * *tile_count * *OUTPUT_X] && tile_collision[ox + oy * size + t1 * size * size + t2 * size * size * *tile_count]){
+						compatible = 1;
+					}
+				}
+		
+				if(!compatible){
+					wave_write[chunk] = 0;
+					change_state_write[x + y * *OUTPUT_X] = 1;
+					change_entire[0] = 1;
+				}
+			}
+		}
+	}
+
+	
+}
+""")
+compute_propagation = compute_propagation_module.get_function("compute_propagation")
 
 
 # referenceGlobal, N, ROTATION, MIRRORING_HORZ, MIRRORING_VERT, OUTPUT_X, OUTPUT_Y
@@ -298,9 +373,16 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
  
 	tile_collision = np.zeros((tile_count, tile_count, 2 * N - 1, 2 * N - 1), dtype=bool)
 
+	change_state = np.zeros((OUTPUT_Y, OUTPUT_X), dtype=bool)
+ 
+	change_entire_state = np.zeros(1, dtype=bool)	
+	
 	# GPU Memory Definitions
 	wave_gpu = drv.mem_alloc(wave.nbytes)
 	drv.memcpy_htod(wave_gpu, wave)
+ 
+	wave_write_gpu = drv.mem_alloc(wave.nbytes)
+	drv.memcpy_htod(wave_write_gpu, wave)
 
 	entropy_array_gpu = drv.mem_alloc(entropy_array.nbytes)
 	drv.memcpy_htod(entropy_array_gpu, entropy_array)
@@ -314,6 +396,12 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 	tile_collision_gpu = drv.mem_alloc(tile_collision.nbytes)
 	drv.memcpy_htod(tile_collision_gpu, tile_collision)
 
+	change_state_read_gpu = drv.mem_alloc(change_state.nbytes)
+	drv.memcpy_htod(change_state_read_gpu, change_state)
+
+	change_state_write_gpu = drv.mem_alloc(change_state.nbytes)
+	drv.memcpy_htod(change_state_write_gpu, change_state)
+	
 	# win_bool_gpu = drv.mem_alloc(win_bool.nbytes)
 	# drv.memcpy_htod(win_bool_gpu, win_bool)
 
@@ -346,7 +434,7 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 	saveWave()
 	
 	block, grid = createsBlockGridSizes(len(tile_array), len(tile_array), N_input * 2 - 1)
-	compute_tile_connections(tile_collision_gpu, tile_array_gpu, tile_count_gpu, N_gpu, block=block, grid=grid)
+	compute_tile_collision(tile_collision_gpu, tile_array_gpu, tile_count_gpu, N_gpu, block=block, grid=grid)
  
 	# drv.memcpy_dtoh(tile_collision, tile_collision_gpu)
 	# print(tile_array)
@@ -358,14 +446,25 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 		block, grid = createsBlockGridSizes(OUTPUT_X, OUTPUT_Y, 1)
 		compute_entropy(wave_gpu, out_x_gpu, out_y_gpu, tile_count_gpu, entropy_array_gpu, block=block, grid=grid)
 
+		drv.memcpy_dtoh(entropy_array, entropy_array_gpu)
+		
+		print(entropy_array)
+
 		# Calculate Entropty Columns and Fail/Success states
 		block, grid = createsBlockGridSizes(OUTPUT_X, 1, 1)
 		compute_lowest_col_entropy(entropy_array_gpu, out_x_gpu, out_y_gpu, tile_count_gpu, count_in_cols_gpu, lowest_value_in_cols_gpu, drv.InOut(solve_state), block=block, grid=grid)
 
+		drv.memcpy_dtoh(lowest_value_in_cols, lowest_value_in_cols_gpu)
+		print(lowest_value_in_cols)
+
 		win_bool, fail_bool = solve_state
 		
-		if win_bool: return True
-		if fail_bool: return False
+		if win_bool: 
+			print("WINNER")
+			return True
+		if fail_bool: 
+			print("LOSER")
+			return False
 
 		block, grid = createsBlockGridSizes(1, 1, 1)
 		
@@ -374,16 +473,46 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 
 		compute_entropy_position(wave_gpu, entropy_array_gpu, out_x_gpu, out_y_gpu, tile_count_gpu, drv.In(rand1), drv.In(rand2), count_in_cols_gpu, lowest_value_in_cols_gpu, drv.InOut(entropy_position), block=block, grid=grid)
 
-		print("Random 1:", rand1)
-		print("Random 2:", rand2)
+		# print("Random 1:", rand1)
+		# print("Random 2:", rand2)
 		print(f"Chosen {entropy_position[0], entropy_position[1]}")
 
+		block, grid = createsBlockGridSizes(OUTPUT_X, OUTPUT_Y, 1)
+		clear_changes(out_x_gpu, out_y_gpu, drv.In(entropy_position[0]), drv.In(entropy_position[1]), change_state_read_gpu, block=block, grid=grid)
+
+		change_entire_state[0] = 1
+
+		# drv.memcpy_dtoh(change_state, change_state_read_gpu)
+		# print(change_state)
+  
+		while(change_entire_state[0]):
+	  
+			change_entire_state[0] = 0
+
+			block, grid = createsBlockGridSizes(OUTPUT_X, OUTPUT_Y, len(tile_array))
+			compute_propagation(out_x_gpu, out_y_gpu, tile_count_gpu, N_gpu, change_state_read_gpu, change_state_write_gpu, wave_gpu, wave_write_gpu, tile_collision_gpu, drv.InOut(change_entire_state), block=block, grid=grid)
+			
+			drv.memcpy_dtod(wave_gpu, wave_write_gpu, wave.nbytes)
+			drv.memcpy_dtod(change_state_read_gpu, change_state_write_gpu, change_state.nbytes)
+   
+			saveWave()
 		
-		drv.memcpy_dtoh(wave, wave_gpu)
-
+			# time.sleep(0.5)
+	
+  
+		# drv.memcpy_dtoh(change_state, change_state_read_gpu)
+		# drv.memcpy_dtoh(wave, wave_gpu)
+		
+		# print(change_state)
+		# print("----"*10)
 		# print(wave)
-
-		saveWave()
+  
+		print("Round Complete")
+		
+		# saveWave()
+	
+		# time.sleep(0.5)
+		return solve()
 		# drv.memcpy_dtoh(count_in_cols, count_in_cols_gpu)
 		# drv.memcpy_dtoh(lowest_value_in_cols, lowest_value_in_cols_gpu)
 

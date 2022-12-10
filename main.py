@@ -2,16 +2,23 @@ import multiprocessing
 import time
 import generate, visual
 
-COLORS = [ # r.g.b.c.y.m.w
-	(255,   0,   0, 255),
-	(  0,   0, 255, 255),
-	(  0, 255,   0, 255),
-	(  0, 179, 179, 255),
-	(255,   0, 255, 255),
-	(255, 255,   0, 255),
-	(  0,   0,   0, 255),
-	(255, 255, 255, 255)
+# COLORS = [ # r.g.b.c.y.m.w
+# 	(255,   0,   0, 255),
+# 	(  0,   0, 255, 255),
+# 	(  0, 255,   0, 255),
+# 	(  0, 179, 179, 255),
+# 	(255,   0, 255, 255),
+# 	(255, 255,   0, 255),
+# 	(  0,   0,   0, 255),
+# 	(255, 255, 255, 255)
+# ]
+
+COLORS = [
+	(0,0,0,255),
+	(255,255,255,255),
+	(0,0,255,255)
 ]
+
 ROTATION = 1
 MIRRORING_HORZ = 1
 MIRRORING_VERT = 1
@@ -27,8 +34,8 @@ ROTATION = 1
 MIRRORING_HORZ = 1
 MIRRORING_VERT = 1
 
-OUTPUT_X = 5
-OUTPUT_Y = 5
+OUTPUT_X = 10
+OUTPUT_Y = 10
 
 # Define the functions to run
 def func1(*args):
