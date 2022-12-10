@@ -213,14 +213,14 @@ __global__ void compute_propagation(unsigned int *OUTPUT_X, unsigned int *OUTPUT
 	const int size = 2 * *N - 1;
   
 	int dx, dy, t2, x2, y2, ox, oy;
-	bool compatible = 0;
-	for(dx = -*N + 1; dx < *N && !compatible; ++dx){
+	bool compatible = 1;
+	for(dx = -*N + 1; dx < *N && compatible; ++dx){
 		x2 = x + dx;
 		ox = dx + *N - 1;
   
 		if(x2 < 0 || x2 >= *OUTPUT_X) continue;
   
-		for (dy = -*N + 1; dy < *N && !compatible; ++dy){
+		for (dy = -*N + 1; dy < *N && compatible; ++dy){
 			if(dx == 0 && dy == 0) continue;
 			y2 = y + dy;
 			oy = dy + *N - 1;
@@ -229,6 +229,7 @@ __global__ void compute_propagation(unsigned int *OUTPUT_X, unsigned int *OUTPUT
    
 			if(change_state_read[x2 + y2 * *OUTPUT_X]){
 				// Check for compatibility
+				compatible = 0;
 
 				for(t2 = 0; t2 < *tile_count && !compatible; ++t2){
 					if(wave_read[t2 + x2 * *tile_count + y2 * *tile_count * *OUTPUT_X] && tile_collision[ox + oy * size + t1 * size * size + t2 * size * size * *tile_count]){
@@ -244,8 +245,6 @@ __global__ void compute_propagation(unsigned int *OUTPUT_X, unsigned int *OUTPUT
 			}
 		}
 	}
-
-	
 }
 """)
 compute_propagation = compute_propagation_module.get_function("compute_propagation")
@@ -446,45 +445,36 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 		block, grid = createsBlockGridSizes(OUTPUT_X, OUTPUT_Y, 1)
 		compute_entropy(wave_gpu, out_x_gpu, out_y_gpu, tile_count_gpu, entropy_array_gpu, block=block, grid=grid)
 
-		drv.memcpy_dtoh(entropy_array, entropy_array_gpu)
-		
-		print(entropy_array)
-
+		solve_state[0] = 1
+  
 		# Calculate Entropty Columns and Fail/Success states
 		block, grid = createsBlockGridSizes(OUTPUT_X, 1, 1)
 		compute_lowest_col_entropy(entropy_array_gpu, out_x_gpu, out_y_gpu, tile_count_gpu, count_in_cols_gpu, lowest_value_in_cols_gpu, drv.InOut(solve_state), block=block, grid=grid)
 
-		drv.memcpy_dtoh(lowest_value_in_cols, lowest_value_in_cols_gpu)
-		print(lowest_value_in_cols)
-
 		win_bool, fail_bool = solve_state
 		
-		if win_bool: 
-			print("WINNER")
-			return True
 		if fail_bool: 
-			print("LOSER")
+			print("Failed Generation")
 			return False
-
-		block, grid = createsBlockGridSizes(1, 1, 1)
+		if win_bool: 
+			print("Completed Generation")
+			return True
 		
 		rand1 = np.float32(np.random.rand())
 		rand2 = np.float32(np.random.rand())
 
+		block, grid = createsBlockGridSizes(1, 1, 1)
 		compute_entropy_position(wave_gpu, entropy_array_gpu, out_x_gpu, out_y_gpu, tile_count_gpu, drv.In(rand1), drv.In(rand2), count_in_cols_gpu, lowest_value_in_cols_gpu, drv.InOut(entropy_position), block=block, grid=grid)
 
-		# print("Random 1:", rand1)
-		# print("Random 2:", rand2)
-		print(f"Chosen {entropy_position[0], entropy_position[1]}")
+		# print(f"Placing ({entropy_position[0]}, {entropy_position[1]})")
 
 		block, grid = createsBlockGridSizes(OUTPUT_X, OUTPUT_Y, 1)
 		clear_changes(out_x_gpu, out_y_gpu, drv.In(entropy_position[0]), drv.In(entropy_position[1]), change_state_read_gpu, block=block, grid=grid)
 
 		change_entire_state[0] = 1
-
-		# drv.memcpy_dtoh(change_state, change_state_read_gpu)
-		# print(change_state)
   
+		# print("Propagating")
+	
 		while(change_entire_state[0]):
 	  
 			change_entire_state[0] = 0
@@ -495,29 +485,11 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 			drv.memcpy_dtod(wave_gpu, wave_write_gpu, wave.nbytes)
 			drv.memcpy_dtod(change_state_read_gpu, change_state_write_gpu, change_state.nbytes)
    
-			saveWave()
-		
-			# time.sleep(0.5)
-	
-  
-		# drv.memcpy_dtoh(change_state, change_state_read_gpu)
-		# drv.memcpy_dtoh(wave, wave_gpu)
-		
-		# print(change_state)
-		# print("----"*10)
-		# print(wave)
-  
-		print("Round Complete")
-		
-		# saveWave()
-	
+		saveWave()
 		# time.sleep(0.5)
-		return solve()
-		# drv.memcpy_dtoh(count_in_cols, count_in_cols_gpu)
-		# drv.memcpy_dtoh(lowest_value_in_cols, lowest_value_in_cols_gpu)
 
-		# print(entropy_array)
 	
-		
+		return solve()
+	
 
 	solve()

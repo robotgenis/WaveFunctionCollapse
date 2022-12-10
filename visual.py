@@ -71,7 +71,7 @@ compute_colors = compute_colors_module.get_function("compute_colors")
 def run(r, OUTPUT_X, OUTPUT_Y):
 
 	# Define the size and colors of the grid squares in pixels
-	size = 50
+	size = 25
 	
 	# Set the window size and background color
 	width, height = size*OUTPUT_X, size*OUTPUT_Y
@@ -115,7 +115,7 @@ def run(r, OUTPUT_X, OUTPUT_Y):
 
 	data = []
 
-	for row in output:
+	for row in output[::-1]:
 		temp = []
 		for i in row:
 			temp.extend(tuple(i)*size)
@@ -128,7 +128,8 @@ def run(r, OUTPUT_X, OUTPUT_Y):
 
 	format_size = 4
 	bytes_per_channel = 1
-	img_pitch = height * format_size * bytes_per_channel
+	img_pitch = width * format_size * bytes_per_channel
+
 
 	img = pyglet.image.ImageData(
 		width,
@@ -174,5 +175,5 @@ def run(r, OUTPUT_X, OUTPUT_Y):
 		img.set_data("RGBA", img_pitch, tex_data)
 
 	# Run the window
-	pyglet.clock.schedule_interval(update, 0.5)
+	pyglet.clock.schedule_interval(update, 0.2)
 	pyglet.app.run()
