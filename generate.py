@@ -1,10 +1,5 @@
-
-from copy import deepcopy
-from queue import PriorityQueue
-
 import sys
 from collections import defaultdict
-import random
 
 import numpy as np
 import pycuda.autoinit
@@ -16,9 +11,56 @@ from gpu_helper import createsBlockGridSizes
 sys.setrecursionlimit(10000)
 
 
-# Create a CUDA kernel
-# TODO compute_tile_connections_module
+# Create CUDA kernels
+compute_tile_connections_module = SourceModule("""                              
+int min(int a, int b){
+	return (a < b) ? a : b;
+}
+ 
+int max(int a, int b){
+	return (a < b) ? b : a;
+}
 
+int abs(int a){
+	return (a < 0) ? a * -1 : a;
+}
+                                               
+__global__ void compute_tile_connections(bool *tile_collision, unsigned char *tile_array, unsigned int *tile_count, unsigned int *N) {
+	const int t1 = threadIdx.x + blockIdx.x * blockDim.x;
+	const int t2 = threadIdx.y + blockIdx.y * blockDim.y;
+ 
+	const int dy = threadIdx.z + blockIdx.z * blockDim.z;
+	const int dy_offset = dy - *N + 1;
+ 
+	const int size = 2 * *N - 1;
+	const int chunk = dy + t1 * size + t2 * size * *tile_count;
+	
+	if(t1 >= *tile_count || t2 >= *tile_count || dy >= size) return;
+ 
+	// Offset is with negative
+	int dx, ox, oy, t1x, t2x, t1y, t2y, dx_offset;
+	bool overlap;
+	for (dx = 0; dx < size; ++dx){	
+		dx_offset = dx - *N + 1;
+		overlap = 1;
+		
+		for(ox = 0; ox < *N - abs(dx_offset) && overlap; ++ox){
+			t1x = max(0, dx_offset) + ox; // 0
+			t2x = max(0, -dx_offset) + ox; // 1
+			for(oy = 0; oy < *N - abs(dy_offset) && overlap; ++oy){
+				t1y = max(0,  dy_offset) + oy;
+				t2y = max(0, -dy_offset) + oy;
+				if(tile_array[t1x + t1y * *N + t1 * *N * *N] != tile_array[t2x + t2y * *N + t2 * *N * *N]){
+					overlap = 0;
+				}
+			}
+		}
+
+		tile_collision[chunk * size + dx] = overlap;		
+	}
+}
+""")
+compute_tile_connections = compute_tile_connections_module.get_function("compute_tile_connections")
 
 
 compute_entropy_module = SourceModule("""
@@ -71,7 +113,6 @@ __global__ void compute_lowest_col_entropy(unsigned int *entropy, unsigned int *
 }
 """)
 compute_lowest_col_entropy = compute_lowest_col_entropy_module.get_function("compute_lowest_col_entropy")
-
 
 
 compute_entropy_position_module = SourceModule("""
@@ -254,6 +295,8 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 	solve_state[0] = 1
 
 	entropy_position = np.zeros(2, dtype=np.uint32)	
+ 
+	tile_collision = np.zeros((tile_count, tile_count, 2 * N - 1, 2 * N - 1), dtype=bool)
 
 	# GPU Memory Definitions
 	wave_gpu = drv.mem_alloc(wave.nbytes)
@@ -267,6 +310,9 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 
 	lowest_value_in_cols_gpu = drv.mem_alloc(lowest_value_in_cols.nbytes)
 	drv.memcpy_htod(lowest_value_in_cols_gpu, lowest_value_in_cols)
+ 
+	tile_collision_gpu = drv.mem_alloc(tile_collision.nbytes)
+	drv.memcpy_htod(tile_collision_gpu, tile_collision)
 
 	# win_bool_gpu = drv.mem_alloc(win_bool.nbytes)
 	# drv.memcpy_htod(win_bool_gpu, win_bool)
@@ -298,6 +344,14 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 		referenceGlobal[0] = wave_output
 
 	saveWave()
+	
+	block, grid = createsBlockGridSizes(len(tile_array), len(tile_array), N_input * 2 - 1)
+	compute_tile_connections(tile_collision_gpu, tile_array_gpu, tile_count_gpu, N_gpu, block=block, grid=grid)
+ 
+	# drv.memcpy_dtoh(tile_collision, tile_collision_gpu)
+	# print(tile_array)
+	# print("----" * 10)
+	# print(tile_collision)
 
 	def solve():
 		# Generate entropies
