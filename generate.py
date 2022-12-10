@@ -444,6 +444,10 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 		# Generate entropies
 		block, grid = createsBlockGridSizes(OUTPUT_X, OUTPUT_Y, 1)
 		compute_entropy(wave_gpu, out_x_gpu, out_y_gpu, tile_count_gpu, entropy_array_gpu, block=block, grid=grid)
+  
+		
+		drv.memcpy_dtoh(entropy_array, entropy_array_gpu)
+		print(*list(list(i) for i in entropy_array), sep = "\n")
 
 		solve_state[0] = 1
   

@@ -11,7 +11,6 @@ from gpu_helper import createsBlockGridSizes
 # Create a CUDA kernel
 compute_colors_module = SourceModule("""
 __global__ void compute_colors(bool *wave, unsigned int *OUTPUT_X, unsigned int *OUTPUT_Y, unsigned char *N, unsigned int *tile_count, unsigned char *tile_array, unsigned char *colors_array, unsigned int *output) {
-	
 	const int x = threadIdx.x + blockIdx.x * blockDim.x;
 	const int y = threadIdx.y + blockIdx.y * blockDim.y;
 	const int chunk = x + y * *OUTPUT_X;
@@ -71,7 +70,7 @@ compute_colors = compute_colors_module.get_function("compute_colors")
 def run(r, OUTPUT_X, OUTPUT_Y):
 
 	# Define the size and colors of the grid squares in pixels
-	size = 25
+	size = 1
 	
 	# Set the window size and background color
 	width, height = size*OUTPUT_X, size*OUTPUT_Y

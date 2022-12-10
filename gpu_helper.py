@@ -2,7 +2,7 @@ from math import ceil
 
 MAX_THREAD = [1024, 1024, 64]
 
-MAX_BLOCK = (32, 32, 1)
+MAX_BLOCK = (16, 16, 1)
 WARP_SIZE = 32
 
 def createsBlockGridSizes(*a):
