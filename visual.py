@@ -11,7 +11,6 @@ from gpu_helper import createsBlockGridSizes
 # Create a CUDA kernel
 compute_colors_module = SourceModule("""
 __global__ void compute_colors(bool *wave, unsigned int *OUTPUT_X, unsigned int *OUTPUT_Y, unsigned char *N, unsigned int *tile_count, unsigned char *tile_array, unsigned char *colors_array, unsigned int *output) {
-	
 	const int x = threadIdx.x + blockIdx.x * blockDim.x;
 	const int y = threadIdx.y + blockIdx.y * blockDim.y;
 	const int chunk = x + y * *OUTPUT_X;
@@ -158,7 +157,6 @@ def run(r, OUTPUT_X, OUTPUT_Y):
 
 		# data = output.flatten()
 
-		# Expand data for larger display
 		data = []
 
 		for row in output[::-1]:
@@ -175,5 +173,5 @@ def run(r, OUTPUT_X, OUTPUT_Y):
 		img.set_data("RGBA", img_pitch, tex_data)
 
 	# Run the window
-	pyglet.clock.schedule_interval(update, 0.2)
+	pyglet.clock.schedule_interval(update, 0.5)
 	pyglet.app.run()

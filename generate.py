@@ -95,17 +95,19 @@ __global__ void compute_lowest_col_entropy(unsigned int *entropy, unsigned int *
 		
 		if(temp == 0) {
 			solve_state[1] = 1;
+			solve_state[0] = 0;
 		}else if(temp != 1){
 			solve_state[0] = 0;
 			if(temp < lowest_value){
 				lowest_value = temp;
 				counter = 0;
 			}
+   			if(lowest_value == temp){
+				++counter;
+			}
 		}
 
-		if(lowest_value == temp){
-			++counter;
-		}
+
 	}
 
 	count_in_cols[x] = counter;
@@ -162,10 +164,12 @@ __global__ void compute_entropy_position(bool *wave, unsigned int *entropy, unsi
 
 	// X and Y are both found and chunk var. is filled in
 	
+	//printf("Placing (%d, %d)\\n", x, y);
+ 
 	entropy_position[0] = x;
 	entropy_position[1] = y;
 
-	int tile_index = smallest_value * *rand2;
+	int tile_index = (int) (smallest_value * *rand2);
 
 	int t, val;
 	for(t = 0; t < *tile_count; ++t){
@@ -188,7 +192,6 @@ __global__ void clear_changes(unsigned int *OUTPUT_X, unsigned int *OUTPUT_Y, un
 	if(x >= *OUTPUT_X || y >= *OUTPUT_Y) return;
  
 	change[chunk] = (*TARGET_X == x && *TARGET_Y == y);
-
 }
 """)
 clear_changes = clear_changes_module.get_function("clear_changes")
@@ -203,21 +206,20 @@ __global__ void compute_propagation(unsigned int *OUTPUT_X, unsigned int *OUTPUT
 	if(x >= *OUTPUT_X || y >= *OUTPUT_Y || t1 >= *tile_count) return;
   
 	wave_write[chunk] = wave_read[chunk];
-	change_state_write[x + y * *OUTPUT_X] = 0;
  
 	if(!wave_read[chunk]) return;
   
 	const int size = 2 * *N - 1;
   
 	int dx, dy, t2, x2, y2, ox, oy;
-	bool compatible = 1;
-	for(dx = -*N + 1; dx < *N && compatible; ++dx){
+	bool compatible;
+	for(dx = -*N + 1; dx < *N; ++dx){
 		x2 = x + dx;
 		ox = dx + *N - 1;
   
 		if(x2 < 0 || x2 >= *OUTPUT_X) continue;
   
-		for (dy = -*N + 1; dy < *N && compatible; ++dy){
+		for (dy = -*N + 1; dy < *N; ++dy){
 			if(dx == 0 && dy == 0) continue;
 			y2 = y + dy;
 			oy = dy + *N - 1;
@@ -238,6 +240,7 @@ __global__ void compute_propagation(unsigned int *OUTPUT_X, unsigned int *OUTPUT
 					wave_write[chunk] = 0;
 					change_state_write[x + y * *OUTPUT_X] = 1;
 					change_entire[0] = 1;
+					return;
 				}
 			}
 		}
@@ -432,6 +435,10 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 	block, grid = createsBlockGridSizes(len(tile_array), len(tile_array), N_input * 2 - 1)
 	compute_tile_collision(tile_collision_gpu, tile_array_gpu, tile_count_gpu, N_gpu, block=block, grid=grid)
  
+	sleepTime = 0.01
+ 
+	time.sleep(sleepTime)
+ 
 	# drv.memcpy_dtoh(tile_collision, tile_collision_gpu)
 	# print(tile_array)
 	# print("----" * 10)
@@ -441,13 +448,16 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 		# Generate entropies
 		block, grid = createsBlockGridSizes(OUTPUT_X, OUTPUT_Y, 1)
 		compute_entropy(wave_gpu, out_x_gpu, out_y_gpu, tile_count_gpu, entropy_array_gpu, block=block, grid=grid)
+		
+		# drv.memcpy_dtoh(entropy_array, entropy_array_gpu)
+		# print(*list(list(i) for i in entropy_array), sep = "\n")
 
 		solve_state[0] = 1
   
 		# Calculate Entropty Columns and Fail/Success states
 		block, grid = createsBlockGridSizes(OUTPUT_X, 1, 1)
 		compute_lowest_col_entropy(entropy_array_gpu, out_x_gpu, out_y_gpu, tile_count_gpu, count_in_cols_gpu, lowest_value_in_cols_gpu, drv.InOut(solve_state), block=block, grid=grid)
-
+  
 		win_bool, fail_bool = solve_state
 		
 		if fail_bool: 
@@ -455,7 +465,7 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 			return False
 		if win_bool: 
 			print("Completed Generation")
-			return True
+			return False
 		
 		rand1 = np.float32(np.random.rand())
 		rand2 = np.float32(np.random.rand())
@@ -463,6 +473,8 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 		block, grid = createsBlockGridSizes(1, 1, 1)
 		compute_entropy_position(wave_gpu, entropy_array_gpu, out_x_gpu, out_y_gpu, tile_count_gpu, drv.In(rand1), drv.In(rand2), count_in_cols_gpu, lowest_value_in_cols_gpu, drv.InOut(entropy_position), block=block, grid=grid)
 
+		# print("Random 1:", rand1)
+		# print("Random 2:", rand2)
 		# print(f"Placing ({entropy_position[0]}, {entropy_position[1]})")
 
 		block, grid = createsBlockGridSizes(OUTPUT_X, OUTPUT_Y, 1)
@@ -474,11 +486,14 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 	
 		while(change_entire_state[0]):
 	  
-			change_entire_state[0] = 0
+			block, grid = createsBlockGridSizes(OUTPUT_X, OUTPUT_Y, 1)
+			clear_changes(out_x_gpu, out_y_gpu, drv.In(np.uint32(-1)), drv.In(np.uint32(-1)), change_state_write_gpu, block=block, grid=grid)
 
+			change_entire_state[0] = 0
+   
 			block, grid = createsBlockGridSizes(OUTPUT_X, OUTPUT_Y, len(tile_array))
 			compute_propagation(out_x_gpu, out_y_gpu, tile_count_gpu, N_gpu, change_state_read_gpu, change_state_write_gpu, wave_gpu, wave_write_gpu, tile_collision_gpu, drv.InOut(change_entire_state), block=block, grid=grid)
-			
+   
 			drv.memcpy_dtod(wave_gpu, wave_write_gpu, wave.nbytes)
 			drv.memcpy_dtod(change_state_read_gpu, change_state_write_gpu, change_state.nbytes)
    
@@ -486,7 +501,7 @@ def gen(referenceGlobal, IS_input:str, N_input:int, R:bool, MH:bool, MV:bool, OU
 		# time.sleep(0.5)
 
 	
-		return solve()
+		return True
 	
 
-	solve()
+	while solve(): pass
