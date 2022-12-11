@@ -34,8 +34,8 @@ ROTATION = 1
 MIRRORING_HORZ = 1
 MIRRORING_VERT = 1
 
-OUTPUT_X = 32
-OUTPUT_Y = 17
+OUTPUT_X = 40
+OUTPUT_Y = 40
 
 # Define the functions to run
 def func1(*args):

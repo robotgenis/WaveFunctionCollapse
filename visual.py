@@ -71,7 +71,7 @@ compute_colors = compute_colors_module.get_function("compute_colors")
 def run(r, OUTPUT_X, OUTPUT_Y):
 
 	# Define the size and colors of the grid squares in pixels
-	size = 25
+	size = 5
 	
 	# Set the window size and background color
 	width, height = size*OUTPUT_X, size*OUTPUT_Y

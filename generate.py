@@ -189,9 +189,6 @@ __global__ void clear_changes(unsigned int *OUTPUT_X, unsigned int *OUTPUT_Y, un
  
 	change[chunk] = (*TARGET_X == x && *TARGET_Y == y);
 
-	// joe mama is so fat
-	// the gpu had to check its bounds *again*
-	if(x >= *OUTPUT_X || y >= *OUTPUT_Y) return;
 }
 """)
 clear_changes = clear_changes_module.get_function("clear_changes")
