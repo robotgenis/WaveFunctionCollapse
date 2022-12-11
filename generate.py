@@ -171,7 +171,7 @@ __global__ void compute_entropy_position(bool *wave, unsigned int *entropy, unsi
 
 	int tile_index = (int) (smallest_value * *rand2);
 
-	int t, val;
+	int t;
 	for(t = 0; t < *tile_count; ++t){
 		if(wave[chunk * *tile_count + t]){
 			wave[chunk * *tile_count + t] = (tile_index == 0);

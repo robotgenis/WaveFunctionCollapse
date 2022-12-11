@@ -167,8 +167,8 @@ MIRRORING_VERT = 1
 
 
 
-OUTPUT_X = 200
-OUTPUT_Y = 200
+OUTPUT_X = 150
+OUTPUT_Y = 150
 
 # Define the functions to run
 def func1(*args):
